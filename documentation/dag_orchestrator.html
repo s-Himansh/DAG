@@ -1,0 +1,592 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Go DAG Orchestrator Roadmap</title>
+<style>
+:root{
+  --bg:#ffffff;--bg2:#f5f5f4;--bg3:#eeede8;
+  --text:#1a1a18;--text2:#5c5c58;--text3:#8a8a85;
+  --border:#d4d3cc;--border2:#b8b7b0;
+  --info-bg:#e6f1fb;--info-text:#185fa5;--info-border:#85b7eb;
+  --success-bg:#eaf3de;--success-text:#3b6d11;
+  --danger-bg:#fcebeb;--danger-text:#a32d2d;
+  --warning-bg:#faeeda;--warning-text:#854f0b;
+  --radius:10px;--radius-sm:6px;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'SF Mono','Fira Code',monospace;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1e1e1c;--bg2:#2a2a27;--bg3:#333330;
+  --text:#e8e6de;--text2:#a8a6a0;--text3:#6e6c68;
+  --border:#3a3a36;--border2:#4a4a46;
+  --info-bg:#042c53;--info-text:#85b7eb;--info-border:#185fa5;
+  --success-bg:#173404;--success-text:#97c459;
+  --danger-bg:#501313;--danger-text:#f09595;
+  --warning-bg:#412402;--warning-text:#fac775;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);padding:20px;max-width:820px;margin:0 auto;line-height:1.5}
+.phase-nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.pnav{padding:5px 13px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;transition:all .15s}
+.pnav.active{background:var(--info-bg);color:var(--info-text);border-color:var(--info-border)}
+.pnav:hover:not(.active){background:var(--bg3);color:var(--text)}
+.phase-panel{display:none}.phase-panel.active{display:block}
+.phase-header{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.phase-badge{font-size:11px;font-weight:600;padding:2px 9px;border-radius:12px;background:var(--info-bg);color:var(--info-text)}
+.phase-title{font-size:17px;font-weight:600;color:var(--text)}
+.phase-desc{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:520px){.two-col{grid-template-columns:1fr}}
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.card-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:3px 9px;border-radius:12px;margin:2px;background:var(--bg2);color:var(--text);border:1px solid var(--border)}
+.chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.learn-list{list-style:none;display:flex;flex-direction:column;gap:5px}
+.learn-list li{font-size:13px;color:var(--text2);padding:5px 10px;border-radius:var(--radius-sm);background:var(--bg2);border-left:2px solid var(--info-border);line-height:1.5}
+.ex-list{list-style:none;display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.ex-list li{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text2);line-height:1.5}
+.ex-num{font-size:11px;font-weight:600;color:var(--info-text);background:var(--info-bg);border-radius:10px;padding:1px 7px;flex-shrink:0;margin-top:1px}
+.box{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.box-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px}
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;cursor:pointer;transition:all .15s;font-family:var(--font)}
+.btn:hover{background:var(--bg3);border-color:var(--border2)}
+.btn:active{transform:scale(.98)}
+.range-ctrl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+input[type=range]{width:70px;accent-color:var(--info-text)}
+
+/* DAG SVG nodes */
+.dag-node-rect{fill:var(--bg2);stroke:var(--border2);stroke-width:1;transition:fill .3s,stroke .3s}
+.dag-node-rect.state-running{fill:#faeeda;stroke:#ba7517}
+.dag-node-rect.state-done{fill:#eaf3de;stroke:#3b6d11}
+.dag-node-rect.state-cancelled{fill:#fcebeb;stroke:#a32d2d}
+@media(prefers-color-scheme:dark){
+  .dag-node-rect.state-running{fill:#412402;stroke:#ef9f27}
+  .dag-node-rect.state-done{fill:#173404;stroke:#639922}
+  .dag-node-rect.state-cancelled{fill:#501313;stroke:#e24b4a}
+}
+.dag-node-label{fill:var(--text);font-family:var(--font);font-size:14px;font-weight:600}
+.dag-node-sub{fill:var(--text3);font-family:var(--font);font-size:11px}
+.dag-edge{stroke:var(--border2);stroke-width:1;fill:none}
+
+.status-bar{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--text2);flex-wrap:wrap}
+.sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.s-wait{background:#888}
+.s-run{background:#ef9f27;animation:pulse 1s ease-in-out infinite}
+.s-done{background:#639922}
+.s-cancel{background:#e24b4a}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Worker pool */
+.worker-rows{display:flex;flex-direction:column;gap:8px}
+.worker-row{display:flex;align-items:center;gap:8px}
+.w-label{font-size:11px;color:var(--text2);width:54px;flex-shrink:0}
+.w-track{flex:1;height:26px;background:var(--bg2);border-radius:5px;overflow:hidden;border:1px solid var(--border)}
+.w-fill{height:100%;border-radius:5px;transition:width .3s,background .3s;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;width:0}
+.stats-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.stat{flex:1;min-width:70px;background:var(--bg2);border-radius:var(--radius-sm);padding:8px 10px;border:1px solid var(--border)}
+.stat .v{font-size:20px;font-weight:600;color:var(--text)}
+.stat .l{font-size:11px;color:var(--text3)}
+.timeline{display:flex;margin-top:10px;width:100%;border-radius:5px;overflow:hidden;height:22px}
+.tl-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;transition:width .3s}
+
+/* Circuit breaker */
+.cb-wrap{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+.cb-state-box{flex:1;min-width:140px;text-align:center;padding:16px 12px;border-radius:10px;border:2px solid var(--border);background:var(--bg2);transition:all .3s}
+.cb-icon{font-size:26px;margin-bottom:4px}
+.cb-lbl{font-size:14px;font-weight:600;color:var(--text)}
+.cb-desc{font-size:11px;color:var(--text2);margin-top:3px}
+.cb-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.cb-log{font-size:12px;color:var(--text2);line-height:1.8;max-height:96px;overflow:auto}
+.retry-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.retry-chip{padding:2px 10px;border-radius:10px;font-weight:500;background:var(--bg2);border:1px solid var(--border);color:var(--text)}
+
+/* API */
+.ep-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;cursor:pointer;border:1px solid var(--border);margin-bottom:6px;transition:background .15s;flex-wrap:wrap}
+.ep-row:hover{background:var(--bg2)}
+.ep-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;color:#fff;flex-shrink:0;min-width:42px;text-align:center}
+.ep-path{font-family:var(--mono);font-size:12px;color:var(--text);flex:1}
+.ep-desc{font-size:12px;color:var(--text2)}
+.ep-detail{display:none;font-size:12px;color:var(--text2);padding:6px 12px 8px;line-height:1.6;border-top:1px solid var(--border);margin-top:-6px;margin-bottom:6px;background:var(--bg2);border-radius:0 0 7px 7px}
+
+/* Phase 5 */
+.p5-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px}
+.p5-card{padding:12px;border-radius:10px;border:1px solid var(--border);cursor:pointer;transition:all .2s}
+.p5-card:hover{background:var(--bg2)}
+.p5-card-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
+.p5-card-sub{font-size:11px;color:var(--text2);line-height:1.5}
+
+/* Bottom nav */
+.bottom-nav{display:flex;justify-content:space-between;align-items:center;margin-top:20px}
+.prog-dots{display:flex;gap:6px}
+.prog-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:background .2s}
+.prog-dot.done{background:var(--info-text)}
+.prog-dot.current{background:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="phase-nav" id="phaseNav"></div>
+
+<!-- Phase 1 -->
+<div id="p0" class="phase-panel active">
+  <div class="phase-header"><span class="phase-badge">Phase 1</span><span class="phase-title">Worker pool</span></div>
+  <p class="phase-desc">A fixed set of goroutines pulls tasks from a shared channel. You control concurrency, prevent resource exhaustion, and handle graceful shutdown — all with Go's core primitives.</p>
+  <div class="two-col">
+    <div class="card"><div class="card-title">Primitives used</div><div id="prims0"></div></div>
+    <div class="card"><div class="card-title">You will learn</div><ul class="learn-list" id="learn0"></ul></div>
+  </div>
+  <div class="box">
+    <div class="box-title">Interactive: worker pool simulation</div>
+    <div class="controls">
+      <button class="btn" id="poolRunBtn" onclick="runPool()">▶ Submit 8 tasks</button>
+      <div class="range-ctrl"><span>Workers:</span><input type="range" min="1" max="4" value="2" id="workerSlider" oninput="updateWorkerCount(this.value)"><span id="workerVal">2</span></div>
+    </div>
+    <div class="worker-rows" id="poolArea"></div>
+    <div class="stats-row">
+      <div class="stat"><div class="v" id="poolDone">0</div><div class="l">Completed</div></div>
+      <div class="stat"><div class="v" id="poolActive">0</div><div class="l">Running</div></div>
+      <div class="stat"><div class="v" id="poolQueue">0</div><div class="l">Queued</div></div>
+      <div class="stat"><div class="v" id="poolTime">—</div><div class="l">Total time</div></div>
+    </div>
+    <div class="timeline" id="poolTimeline"></div>
+  </div>
+  <div class="card"><div class="card-title">Exercises</div><ul class="ex-list" id="ex0"></ul></div>
+</div>
+
+<!-- Phase 2 -->
+<div id="p1" class="phase-panel">
+  <div class="phase-header"><span class="phase-badge">Phase 2</span><span class="phase-title">DAG executor</span></div>
+  <p class="phase-desc">Tasks form a directed acyclic graph. Each task tracks its in-degree (how many dependencies remain). When that count hits zero, the task fires. Fan-out and fan-in happen automatically.</p>
+  <div class="two-col">
+    <div class="card"><div class="card-title">Primitives used</div><div id="prims1"></div></div>
+    <div class="card"><div class="card-title">You will learn</div><ul class="learn-list" id="learn1"></ul></div>
+  </div>
+  <div class="box">
+    <div class="box-title">Interactive: run the DAG — watch tasks fire in dependency order</div>
+    <div class="controls">
+      <button class="btn" id="dagRunBtn" onclick="runDag()">▶ Execute workflow</button>
+      <button class="btn" onclick="resetDag()">↺ Reset</button>
+    </div>
+    <svg id="dagSvg" width="100%" viewBox="0 0 560 290" style="display:block;margin-bottom:8px">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+    </svg>
+    <div class="status-bar">
+      <span class="sdot s-wait"></span>Waiting
+      <span class="sdot s-run" style="margin-left:6px"></span>Running
+      <span class="sdot s-done" style="margin-left:6px"></span>Done
+      <span class="sdot s-cancel" style="margin-left:6px"></span>Cancelled
+      <span style="margin-left:auto" id="dagStatus">Click execute to start</span>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Exercises</div><ul class="ex-list" id="ex1"></ul></div>
+</div>
+
+<!-- Phase 3 -->
+<div id="p2" class="phase-panel">
+  <div class="phase-header"><span class="phase-badge">Phase 3</span><span class="phase-title">Resilience patterns</span></div>
+  <p class="phase-desc">Wrap task execution in three layers: retry with exponential backoff, per-task timeout, and a circuit breaker that opens when a task type keeps failing.</p>
+  <div class="two-col">
+    <div class="card"><div class="card-title">Primitives used</div><div id="prims2"></div></div>
+    <div class="card"><div class="card-title">You will learn</div><ul class="learn-list" id="learn2"></ul></div>
+  </div>
+  <div class="box">
+    <div class="box-title">Interactive: circuit breaker</div>
+    <div class="controls">
+      <button class="btn" onclick="cbSend()">Send request</button>
+      <button class="btn" onclick="cbReset()">Reset</button>
+      <div class="range-ctrl"><span>Fail rate:</span><input type="range" min="0" max="100" value="60" id="failRate" oninput="document.getElementById('failRateVal').textContent=this.value+'%'"><span id="failRateVal">60%</span></div>
+    </div>
+    <div class="cb-wrap">
+      <div class="cb-state-box" id="cbBox">
+        <div class="cb-icon" id="cbIcon">🟢</div>
+        <div class="cb-lbl" id="cbLbl">Closed</div>
+        <div class="cb-desc" id="cbDesc">Requests flowing through</div>
+      </div>
+      <div style="flex:2;min-width:180px">
+        <div class="cb-stats">
+          <div class="stat"><div class="v" id="cbTotal">0</div><div class="l">Total</div></div>
+          <div class="stat"><div class="v" id="cbFail" style="color:#a32d2d">0</div><div class="l">Failures</div></div>
+          <div class="stat"><div class="v" id="cbSucc" style="color:#3b6d11">0</div><div class="l">Success</div></div>
+        </div>
+        <div class="cb-log" id="cbLog"></div>
+      </div>
+    </div>
+  </div>
+  <div class="box">
+    <div class="box-title">Retry + exponential backoff</div>
+    <div class="controls"><button class="btn" onclick="runRetry()">Simulate flaky task</button></div>
+    <div id="retryViz" style="min-height:50px"></div>
+  </div>
+  <div class="card"><div class="card-title">Exercises</div><ul class="ex-list" id="ex2"></ul></div>
+</div>
+
+<!-- Phase 4 -->
+<div id="p3" class="phase-panel">
+  <div class="phase-header"><span class="phase-badge">Phase 4</span><span class="phase-title">HTTP API + persistence</span></div>
+  <p class="phase-desc">Expose the orchestrator over REST. Each HTTP request spawns a goroutine. Workflows persist in a database. Context flows from request handler through to task execution.</p>
+  <div class="two-col">
+    <div class="card"><div class="card-title">Primitives used</div><div id="prims3"></div></div>
+    <div class="card"><div class="card-title">You will learn</div><ul class="learn-list" id="learn3"></ul></div>
+  </div>
+  <div class="box">
+    <div class="box-title">API surface — click any endpoint to expand</div>
+    <div id="apiViz"></div>
+  </div>
+  <div class="card"><div class="card-title">Exercises</div><ul class="ex-list" id="ex3"></ul></div>
+</div>
+
+<!-- Phase 5 -->
+<div id="p4" class="phase-panel">
+  <div class="phase-header"><span class="phase-badge">Phase 5</span><span class="phase-title">Advanced concurrency</span></div>
+  <p class="phase-desc">Five standalone patterns: token-bucket rate limiter, work stealing, pub/sub event bus, read-write lock, and graceful shutdown. Add them one at a time.</p>
+  <div class="box">
+    <div class="box-title">Pattern map — click any card to expand</div>
+    <div class="p5-grid" id="p5Grid"></div>
+    <div id="p5Detail" style="display:none" class="card"></div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <button class="btn" id="prevBtn" onclick="navigate(-1)" disabled>← Prev</button>
+  <div class="prog-dots" id="progDots"></div>
+  <button class="btn" id="nextBtn" onclick="navigate(1)">Next →</button>
+</div>
+
+<script>
+const PHASES=[
+  {label:'Phase 1',title:'Worker pool',
+   prims:[{n:'goroutines',c:'#7F77DD'},{n:'channels (buffered)',c:'#1D9E75'},{n:'sync.WaitGroup',c:'#EF9F27'},{n:'sync.Mutex',c:'#D85A30'},{n:'context.Context',c:'#378ADD'}],
+   learn:['Goroutines vs OS threads — spawn thousands cheaply','Buffered vs unbuffered channels','Producer-consumer pattern via channels','Why Mutex is still needed alongside channels'],
+   ex:['Remove mutex, run go run -race — see the data race','Replace mutex-map with a channel collector goroutine','Add task priorities via a heap-based queue','Add dynamic pool resizing at runtime','Benchmark against one-goroutine-per-task']},
+  {label:'Phase 2',title:'DAG executor',
+   prims:[{n:'sync.WaitGroup',c:'#EF9F27'},{n:'sync.Mutex',c:'#D85A30'},{n:'goroutines (dynamic)',c:'#7F77DD'},{n:'context.Context',c:'#378ADD'},{n:'channel directions',c:'#1D9E75'}],
+   learn:['Fan-out / fan-in patterns','Countdown latch: fire when in-degree hits 0','Concurrent topological sort','Minimise lock hold time in critical sections'],
+   ex:['Cancel downstream tasks on failure with context','Add per-task timeouts via context.WithTimeout','Build a channels-only version (no mutexes)','Print real-time ASCII status visualization']},
+  {label:'Phase 3',title:'Resilience',
+   prims:[{n:'context.WithTimeout',c:'#378ADD'},{n:'time.After',c:'#EF9F27'},{n:'sync/atomic',c:'#D85A30'},{n:'select statement',c:'#1D9E75'},{n:'time.NewTimer',c:'#7F77DD'}],
+   learn:['Cooperative cancellation via context','select as a channel multiplexing primitive','Exponential backoff with jitter','Circuit breaker: closed → open → half-open'],
+   ex:['Make backoff sleep respect context cancellation','Implement circuit breaker with only CompareAndSwap','Combine retry + timeout + circuit breaker','Test flaky service: verify breaker opens and closes']},
+  {label:'Phase 4',title:'HTTP API',
+   prims:[{n:'net/http',c:'#378ADD'},{n:'database/sql',c:'#1D9E75'},{n:'sync.Map',c:'#D85A30'},{n:'context (request)',c:'#EF9F27'},{n:'sync.Once',c:'#7F77DD'}],
+   learn:['Each HTTP request runs in its own goroutine','Connection pooling: SetMaxOpenConns matters','Request context vs background context','Graceful HTTP shutdown with server.Shutdown'],
+   ex:['Graceful shutdown with running-workflow deadline','Add trace ID to all log lines per workflow','Load test: 50 concurrent submissions + race detector','Add SSE endpoint streaming task status updates']},
+  {label:'Phase 5',title:'Advanced',prims:[],learn:[],ex:[]}
+];
+
+const P5=[
+  {name:'Token bucket',c:'#7F77DD',desc:'Controls tasks per unit time with burst support. Two designs: mutex+time.Now, or a goroutine dripping tokens into a buffered channel.',prims:['sync.Mutex','time.Now','buffered channel'],learns:['Time-based shared state','Mutex vs channel design','How golang.org/x/time/rate works internally']},
+  {name:'Work stealing',c:'#1D9E75',desc:'Idle workers steal tasks from busy workers\' queues — from the opposite end to minimize contention.',prims:['per-goroutine deque','sync/atomic','lock-free CAS'],learns:['Per-goroutine state','Lock-free deques','Why stealing beats shared queue at high load']},
+  {name:'Pub/sub bus',c:'#EF9F27',desc:'Components publish events. Subscribers get buffered channels as mailboxes. Slow subscribers drop messages, not block publishers.',prims:['buffered channels','sync.RWMutex','goroutines per sub'],learns:['Observer pattern with concurrency','Buffered channels as mailboxes','Dropped message policies']},
+  {name:'RWMutex',c:'#D85A30',desc:'Multiple concurrent readers, exclusive writers. Benchmark whether it actually helps your workload.',prims:['sync.RWMutex','sync.Mutex (comparison)'],learns:['Readers-writers problem','Writer starvation','When RWMutex helps vs hurts']},
+  {name:'Graceful shutdown',c:'#378ADD',desc:'Catch SIGINT/SIGTERM, drain workflows, flush metrics, close DB, exit cleanly.',prims:['os/signal','errgroup','context.WithTimeout'],learns:['Signal handling in Go','Ordered shutdown sequences','Graceful vs forceful termination']}
+];
+
+const TASK_COLORS=['#7F77DD','#1D9E75','#EF9F27','#D85A30','#378ADD','#639922','#D4537E','#85B7EB'];
+const DAG_NODES=[
+  {id:'A',x:260,y:30},{id:'B',x:100,y:120},{id:'C',x:260,y:120},
+  {id:'F',x:420,y:120},{id:'D',x:180,y:210},{id:'E',x:180,y:280}
+];
+const DAG_EDGES=[['A','B'],['A','C'],['A','F'],['B','D'],['C','D'],['D','E']];
+const DAG_DESC={A:'No deps',B:'needs A',C:'needs A',F:'needs A',D:'needs B+C',E:'needs D'};
+
+let cur=0,dagRunning=false,dagCancel=false;
+let poolRunning=false,workerCount=2;
+let cbState='closed',cbFails=0,cbSucc=0,cbTot=0,cbTimer=null;
+const CB_THRESH=3;
+
+function init(){
+  const nav=document.getElementById('phaseNav');
+  const dots=document.getElementById('progDots');
+  PHASES.forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='pnav'+(i===0?' active':'');
+    b.textContent=p.label+': '+p.title;
+    b.onclick=()=>goPhase(i);
+    nav.appendChild(b);
+    const d=document.createElement('div');
+    d.className='prog-dot'+(i===0?' current':'');
+    d.id='dot'+i; dots.appendChild(d);
+  });
+  PHASES.forEach((p,i)=>{
+    if(i<4){
+      renderPrims('prims'+i,p.prims);
+      renderLearn('learn'+i,p.learn);
+      renderEx('ex'+i,p.ex);
+    }
+  });
+  buildDag(); buildApi(); buildP5(); buildPoolArea();
+}
+
+function goPhase(i){
+  document.querySelectorAll('.phase-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('p'+i).classList.add('active');
+  document.querySelectorAll('.pnav').forEach((b,j)=>b.classList.toggle('active',j===i));
+  document.querySelectorAll('.prog-dot').forEach((d,j)=>{
+    d.classList.toggle('current',j===i);
+    d.classList.toggle('done',j<i);
+  });
+  cur=i;
+  document.getElementById('prevBtn').disabled=i===0;
+  document.getElementById('nextBtn').disabled=i===PHASES.length-1;
+}
+function navigate(d){goPhase(cur+d);}
+
+function renderPrims(id,prims){
+  const el=document.getElementById(id); el.innerHTML='';
+  prims.forEach(p=>{
+    const s=document.createElement('span'); s.className='chip';
+    s.innerHTML=`<span class="chip-dot" style="background:${p.c}"></span>${p.n}`;
+    el.appendChild(s);
+  });
+}
+function renderLearn(id,items){
+  document.getElementById(id).innerHTML=items.map(x=>`<li>${x}</li>`).join('');
+}
+function renderEx(id,items){
+  document.getElementById(id).innerHTML=items.map((x,i)=>`<li><span class="ex-num">${i+1}</span>${x}</li>`).join('');
+}
+
+// ── DAG ─────────────────────────────────────────────────
+function buildDag(){
+  const svg=document.getElementById('dagSvg');
+  DAG_EDGES.forEach(([a,b])=>{
+    const na=DAG_NODES.find(n=>n.id===a),nb=DAG_NODES.find(n=>n.id===b);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('class','dag-edge');
+    line.setAttribute('x1',na.x);line.setAttribute('y1',na.y+20);
+    line.setAttribute('x2',nb.x);line.setAttribute('y2',nb.y-20);
+    line.setAttribute('marker-end','url(#arr)');
+    line.id='e-'+a+b; svg.appendChild(line);
+  });
+  DAG_NODES.forEach(n=>{
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.id='n-'+n.id; g.setAttribute('transform',`translate(${n.x},${n.y})`);
+    const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    r.setAttribute('class','dag-node-rect'); r.id='r-'+n.id;
+    r.setAttribute('x','-36');r.setAttribute('y','-20');
+    r.setAttribute('width','72');r.setAttribute('height','40');r.setAttribute('rx','8');
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('class','dag-node-label');
+    t.setAttribute('text-anchor','middle');t.setAttribute('y','5');t.textContent=n.id;
+    const ts=document.createElementNS('http://www.w3.org/2000/svg','text');
+    ts.setAttribute('class','dag-node-sub');
+    ts.setAttribute('text-anchor','middle');ts.setAttribute('y','32');ts.textContent=DAG_DESC[n.id];
+    g.appendChild(r);g.appendChild(t);g.appendChild(ts);svg.appendChild(g);
+  });
+}
+
+function setNodeState(id,state){
+  const r=document.getElementById('r-'+id);
+  if(!r)return;
+  r.setAttribute('class','dag-node-rect'+(state!=='waiting'?' state-'+state:''));
+}
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function runDag(){
+  if(dagRunning)return;
+  dagRunning=true;dagCancel=false;
+  resetDag(true);
+  const btn=document.getElementById('dagRunBtn');
+  btn.textContent='Running…';
+  const waves=[['A'],['B','C','F'],['D'],['E']];
+  const done=new Set();
+  for(const wave of waves){
+    if(dagCancel)break;
+    wave.forEach(id=>setNodeState(id,'running'));
+    document.getElementById('dagStatus').textContent=wave.length>1?wave.join(', ')+' running in parallel…':wave[0]+' running…';
+    await sleep(900);
+    wave.forEach(id=>{setNodeState(id,'done');done.add(id);});
+    document.getElementById('dagStatus').textContent=`${wave.join(', ')} done — ${done.size}/${DAG_NODES.length} complete`;
+    await sleep(300);
+  }
+  btn.textContent='▶ Execute workflow';
+  document.getElementById('dagStatus').textContent=dagCancel?'Cancelled':'All done — sequential: 5 steps, DAG: 4 steps (B/C/F ran in parallel)';
+  dagRunning=false;
+}
+function resetDag(keepRunning){
+  DAG_NODES.forEach(n=>setNodeState(n.id,'waiting'));
+  document.getElementById('dagStatus').textContent='Click execute to start';
+  if(dagRunning&&!keepRunning)dagCancel=true;
+}
+
+// ── Worker pool ──────────────────────────────────────────
+function buildPoolArea(){updateWorkerCount(2);}
+function updateWorkerCount(v){
+  workerCount=parseInt(v);
+  document.getElementById('workerVal').textContent=v;
+  const a=document.getElementById('poolArea'); a.innerHTML='';
+  for(let i=0;i<workerCount;i++)
+    a.innerHTML+=`<div class="worker-row"><span class="w-label">Worker ${i+1}</span><div class="w-track"><div class="w-fill" id="w${i}"></div></div></div>`;
+}
+async function runPool(){
+  if(poolRunning)return;
+  poolRunning=true;
+  document.getElementById('poolRunBtn').textContent='Running…';
+  const tasks=Array.from({length:8},(_,i)=>({id:i+1,dur:800+Math.random()*2000,c:TASK_COLORS[i]}));
+  let queue=[...tasks],done=0,active=0,start=Date.now();
+  ['poolDone','poolActive','poolQueue','poolTime'].forEach(id=>document.getElementById(id).textContent=id==='poolQueue'?tasks.length:id==='poolTime'?'—':'0');
+  const tl=document.getElementById('poolTimeline'); tl.innerHTML='';
+  const runW=async wIdx=>{
+    while(queue.length>0){
+      const t=queue.shift(); if(!t)break;
+      active++;
+      document.getElementById('poolActive').textContent=active;
+      document.getElementById('poolQueue').textContent=queue.length;
+      const fill=document.getElementById('w'+wIdx);
+      fill.style.background=t.c; fill.style.width='0%'; fill.textContent='Task '+t.id;
+      const steps=20,st=t.dur/steps;
+      for(let s=0;s<=steps;s++){fill.style.width=(s/steps*100)+'%';await sleep(st);}
+      active--;done++;
+      document.getElementById('poolDone').textContent=done;
+      document.getElementById('poolActive').textContent=active;
+      const seg=document.createElement('div'); seg.className='tl-seg';
+      seg.style.background=t.c; seg.style.width=(t.dur/(Date.now()-start)*100).toFixed(1)+'%';
+      seg.textContent=done; tl.appendChild(seg);
+      fill.style.width='0%'; fill.style.background=''; fill.textContent='';
+    }
+  };
+  await Promise.all(Array.from({length:workerCount},(_,i)=>runW(i)));
+  document.getElementById('poolTime').textContent=((Date.now()-start)/1000).toFixed(1)+'s';
+  document.getElementById('poolRunBtn').textContent='▶ Submit 8 tasks';
+  poolRunning=false;
+}
+
+// ── Circuit breaker ──────────────────────────────────────
+function cbSend(){
+  if(cbState==='open'){cbLog('⛔ Blocked — circuit is open');return;}
+  cbTot++;document.getElementById('cbTotal').textContent=cbTot;
+  const fail=Math.random()<parseInt(document.getElementById('failRate').value)/100;
+  if(fail){
+    cbFails++;document.getElementById('cbFail').textContent=cbFails;
+    cbLog('❌ Failed ('+cbFails+'/'+CB_THRESH+')');
+    if(cbFails>=CB_THRESH)openCb();
+  } else {
+    cbSucc++;document.getElementById('cbSucc').textContent=cbSucc;
+    cbLog('✅ Succeeded');
+    if(cbState==='half-open')closeCb();
+  }
+}
+function openCb(){
+  cbState='open';
+  const b=document.getElementById('cbBox');
+  b.style.borderColor='#e24b4a';b.style.background='#fcebeb';
+  document.getElementById('cbIcon').textContent='🔴';
+  document.getElementById('cbLbl').textContent='Open';
+  document.getElementById('cbDesc').textContent='Requests blocked';
+  cbLog('🚨 Circuit opened — cooling 3s…');
+  clearTimeout(cbTimer);cbTimer=setTimeout(halfCb,3000);
+}
+function halfCb(){
+  cbState='half-open';
+  const b=document.getElementById('cbBox');
+  b.style.borderColor='#ba7517';b.style.background='#faeeda';
+  document.getElementById('cbIcon').textContent='🟡';
+  document.getElementById('cbLbl').textContent='Half-open';
+  document.getElementById('cbDesc').textContent='Probing with one request';
+  cbLog('🔄 Cooldown done — probe allowed');cbFails=0;
+}
+function closeCb(){
+  cbState='closed';cbFails=0;
+  const b=document.getElementById('cbBox');
+  b.style.borderColor='';b.style.background='';
+  document.getElementById('cbIcon').textContent='🟢';
+  document.getElementById('cbLbl').textContent='Closed';
+  document.getElementById('cbDesc').textContent='Requests flowing through';
+  cbLog('✅ Probe succeeded — circuit closed');
+}
+function cbReset(){
+  cbState='closed';cbFails=0;cbSucc=0;cbTot=0;clearTimeout(cbTimer);
+  ['cbTotal','cbFail','cbSucc'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('cbLog').innerHTML='';closeCb();
+}
+function cbLog(msg){const el=document.getElementById('cbLog');el.innerHTML=msg+'<br>'+el.innerHTML;}
+
+// ── Retry ────────────────────────────────────────────────
+async function runRetry(){
+  const el=document.getElementById('retryViz'); el.innerHTML='';
+  const failOn=Math.floor(Math.random()*4)+2;
+  let delay=300;
+  for(let i=1;i<=5;i++){
+    const row=document.createElement('div'); row.className='retry-row';
+    const chip=document.createElement('span'); chip.className='retry-chip';
+    chip.textContent='Attempt '+i; row.appendChild(chip); el.appendChild(row);
+    await sleep(delay);
+    const fail=i<failOn;
+    const bar=document.createElement('span');
+    if(fail){
+      bar.textContent=' → failed, backoff '+(delay/1000).toFixed(1)+'s';
+      bar.style.color='#a32d2d'; chip.style.background='#fcebeb'; chip.style.borderColor='#a32d2d';
+      delay=Math.min(delay*2,3200); await sleep(delay*0.35);
+    } else {
+      bar.textContent=' → succeeded ✓';
+      bar.style.color='#3b6d11'; chip.style.background='#eaf3de'; chip.style.borderColor='#3b6d11';
+      row.appendChild(bar); break;
+    }
+    row.appendChild(bar);
+  }
+}
+
+// ── API ──────────────────────────────────────────────────
+function buildApi(){
+  const eps=[
+    {m:'POST',p:'/workflows',d:'Submit a new workflow as JSON',info:'Validates DAG, persists to DB, spawns background executor goroutine. Returns workflow ID.'},
+    {m:'GET',p:'/workflows/{id}',d:'Get workflow status',info:'Returns overall status: pending, running, completed, cancelled, or failed.'},
+    {m:'GET',p:'/workflows/{id}/tasks',d:'Individual task statuses',info:'Returns each task node with state, start time, duration, and any error message.'},
+    {m:'POST',p:'/workflows/{id}/cancel',d:'Cancel a running workflow',info:'Cancels the workflow context. All goroutines receive the cancellation signal.'},
+    {m:'GET',p:'/health',d:'Health check',info:'Returns DB connectivity, active goroutine count, and server uptime.'},
+  ];
+  const mc={GET:'#1D9E75',POST:'#7F77DD',DELETE:'#e24b4a'};
+  const el=document.getElementById('apiViz'); el.innerHTML='';
+  eps.forEach(e=>{
+    const wrap=document.createElement('div');
+    const row=document.createElement('div'); row.className='ep-row';
+    const badge=document.createElement('span'); badge.className='ep-badge';
+    badge.style.background=mc[e.m]||'#888'; badge.textContent=e.m;
+    const path=document.createElement('code'); path.className='ep-path'; path.textContent=e.p;
+    const desc=document.createElement('span'); desc.className='ep-desc'; desc.textContent=e.d;
+    row.appendChild(badge);row.appendChild(path);row.appendChild(desc);
+    const det=document.createElement('div'); det.className='ep-detail'; det.textContent=e.info;
+    row.onclick=()=>{
+      const open=det.style.display!=='none';
+      document.querySelectorAll('.ep-detail').forEach(d=>d.style.display='none');
+      det.style.display=open?'none':'block';
+    };
+    wrap.appendChild(row);wrap.appendChild(det);el.appendChild(wrap);
+  });
+}
+
+// ── Phase 5 ──────────────────────────────────────────────
+function buildP5(){
+  const grid=document.getElementById('p5Grid');
+  P5.forEach((p,i)=>{
+    const c=document.createElement('div'); c.className='p5-card';
+    c.style.borderTop='3px solid '+p.c;
+    c.innerHTML=`<div class="p5-card-name">${p.name}</div><div class="p5-card-sub">${p.desc.substring(0,60)}…</div>`;
+    c.onclick=()=>showP5(i);
+    grid.appendChild(c);
+  });
+}
+function showP5(i){
+  const p=P5[i];
+  const el=document.getElementById('p5Detail'); el.style.display='block';
+  el.innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">${p.name}</div>
+  <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px">${p.desc}</p>
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:120px"><div class="card-title">Primitives</div>${p.prims.map(x=>`<span class="chip" style="margin:2px;font-size:11px">${x}</span>`).join('')}</div>
+    <div style="flex:1;min-width:120px"><div class="card-title">You will learn</div>${p.learns.map(x=>`<div style="font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--border)">${x}</div>`).join('')}</div>
+  </div>`;
+}
+
+init();
+</script>
+</body>
+</html>
