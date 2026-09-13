@@ -21,6 +21,12 @@ type TaskDefinition struct {
 	Dependencies []string `json:"dependencies,omitempty"`
 }
 
+type TaskLog struct {
+	Stream    string    `json:"stream"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type TaskStatus struct {
 	ID        string       `json:"id"`
 	State     string       `json:"state"`
@@ -55,4 +61,7 @@ type WorkflowStore interface {
 	UpdateTaskStatus(workflowID, taskID, state string, value any, errMsg string)
 	CancelWorkflow(id string) bool
 	ExecuteWorkflow(ctx context.Context, id string) error
+	AppendTaskLog(workflowID, taskID, stream, content string)
+	GetTaskLogs(workflowID, taskID string) []TaskLog
+	GetAllTaskLogs(workflowID string) map[string][]TaskLog
 }

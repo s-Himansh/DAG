@@ -16,6 +16,12 @@ export interface TaskStatus {
   ended_at?: string;
 }
 
+export interface TaskLog {
+  stream: string;
+  content: string;
+  created_at: string;
+}
+
 export interface Workflow {
   id: string;
   name: string;
@@ -70,4 +76,10 @@ export const api = {
     request<{ status: string }>(`${PREFIX}/workflows/${id}/cancel`, {
       method: "POST",
     }),
+
+  getTaskLogs: (workflowId: string, taskId: string) =>
+    request<TaskLog[]>(`${PREFIX}/workflows/${workflowId}/logs/${taskId}`),
+
+  getAllTaskLogs: (workflowId: string) =>
+    request<Record<string, TaskLog[]>>(`${PREFIX}/workflows/${workflowId}/logs`),
 };

@@ -224,3 +224,14 @@ func (s *MemoryStore) ExecuteWorkflow(ctx context.Context, id string) error {
 	s.UpdateWorkflow(id, StatusCompleted, "")
 	return nil
 }
+
+func (s *MemoryStore) AppendTaskLog(workflowID, taskID, stream, content string) {
+}
+
+func (s *MemoryStore) GetTaskLogs(workflowID, taskID string) []TaskLog {
+	return nil
+}
+
+func (s *MemoryStore) GetAllTaskLogs(workflowID string) map[string][]TaskLog {
+	return nil
+}

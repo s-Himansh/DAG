@@ -40,6 +40,8 @@ func (h *Handler) Router() *chi.Mux {
 		r.Get("/", h.ListWorkflows)
 		r.Get("/{id}", h.GetWorkflow)
 		r.Get("/{id}/tasks", h.GetWorkflowTasks)
+		r.Get("/{id}/logs", h.GetAllTaskLogs)
+		r.Get("/{id}/logs/{taskId}", h.GetTaskLogs)
 		r.Post("/{id}/cancel", h.CancelWorkflow)
 	})
 
@@ -148,6 +150,25 @@ func (h *Handler) CancelWorkflow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "cancelled"})
+}
+
+func (h *Handler) GetTaskLogs(w http.ResponseWriter, r *http.Request) {
+	workflowID := chi.URLParam(r, "id")
+	taskID := chi.URLParam(r, "taskId")
+
+	logs := h.store.GetTaskLogs(workflowID, taskID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(logs)
+}
+
+func (h *Handler) GetAllTaskLogs(w http.ResponseWriter, r *http.Request) {
+	workflowID := chi.URLParam(r, "id")
+
+	logs := h.store.GetAllTaskLogs(workflowID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(logs)
 }
 
 func (h *Handler) Shutdown() {

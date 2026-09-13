@@ -1,0 +1,37 @@
+name: CI/CD Pipeline
+
+tasks:
+  - id: checkout
+    execute: echo "Cloning repository..." && sleep 1 && echo "Repository cloned"
+
+  - id: install-deps
+    execute: echo "Installing dependencies..." && sleep 1 && echo "Dependencies installed"
+    depends_on:
+      - checkout
+
+  - id: lint
+    execute: echo "Running linter..." && sleep 1 && echo "Lint passed"
+    depends_on:
+      - install-deps
+
+  - id: typecheck
+    execute: echo "Running type checker..." && sleep 1 && echo "Types OK"
+    depends_on:
+      - install-deps
+
+  - id: test
+    execute: echo "Running tests..." && sleep 2 && echo "All 42 tests passed"
+    depends_on:
+      - install-deps
+
+  - id: build
+    execute: echo "Building project..." && sleep 2 && echo "Build successful"
+    depends_on:
+      - lint
+      - typecheck
+      - test
+
+  - id: deploy
+    execute: echo "Deploying to production..." && sleep 1 && echo "Deployed successfully"
+    depends_on:
+      - build

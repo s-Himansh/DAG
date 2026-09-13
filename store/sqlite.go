@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"dag/dag"
+	"dag/executor"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -63,6 +64,15 @@ func (s *SQLiteStore) migrate() error {
 			started_at DATETIME,
 			ended_at DATETIME,
 			UNIQUE(workflow_id, task_id),
+			FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS task_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			workflow_id TEXT NOT NULL,
+			task_id TEXT NOT NULL,
+			stream TEXT NOT NULL DEFAULT 'stdout',
+			content TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
 		)`,
 	}
@@ -361,24 +371,35 @@ func (s *SQLiteStore) ExecuteWorkflow(ctx context.Context, id string) error {
 
 	s.UpdateWorkflow(id, StatusRunning, "")
 
+	shellExec := executor.New(
+		executor.WithTimeout(10*time.Minute),
+		executor.WithLogFunc(func(taskID, stream, content string) {
+			s.AppendTaskLog(id, taskID, stream, content)
+		}),
+	)
+
 	dagBuilder := dag.NewBuilder()
 
 	for _, t := range w.Tasks {
 		taskID := t.ID
+		command := t.Execute
 		dagBuilder.AddTask(taskID, func() (any, error) {
 			s.UpdateTaskStatus(id, taskID, "running", nil, "")
 
-			duration := getTaskDuration(taskID)
-			select {
-			case <-time.After(duration):
-			case <-ctx.Done():
-				s.UpdateTaskStatus(id, taskID, "skipped", nil, "cancelled")
-				return nil, ctx.Err()
+			result, err := shellExec.Run(ctx, taskID, command)
+			if err != nil {
+				s.UpdateTaskStatus(id, taskID, "failed", nil, err.Error())
+				return nil, err
 			}
 
-			result := fmt.Sprintf("result_%s", taskID)
-			s.UpdateTaskStatus(id, taskID, "completed", result, "")
-			return result, nil
+			if result.ExitCode != 0 {
+				errMsg := fmt.Sprintf("exit code %d: %s", result.ExitCode, result.Error)
+				s.UpdateTaskStatus(id, taskID, "failed", nil, errMsg)
+				return nil, fmt.Errorf("task %s failed: %s", taskID, errMsg)
+			}
+
+			s.UpdateTaskStatus(id, taskID, "completed", result.Output, "")
+			return result.Output, nil
 		})
 	}
 
@@ -408,6 +429,56 @@ func (s *SQLiteStore) ExecuteWorkflow(ctx context.Context, id string) error {
 
 	s.UpdateWorkflow(id, StatusCompleted, "")
 	return nil
+}
+
+func (s *SQLiteStore) AppendTaskLog(workflowID, taskID, stream, content string) {
+	s.db.Exec(
+		`INSERT INTO task_logs (workflow_id, task_id, stream, content) VALUES (?, ?, ?, ?)`,
+		workflowID, taskID, stream, content,
+	)
+}
+
+func (s *SQLiteStore) GetTaskLogs(workflowID, taskID string) []TaskLog {
+	rows, err := s.db.Query(
+		`SELECT stream, content, created_at FROM task_logs WHERE workflow_id = ? AND task_id = ? ORDER BY id`,
+		workflowID, taskID,
+	)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var logs []TaskLog
+	for rows.Next() {
+		var l TaskLog
+		if err := rows.Scan(&l.Stream, &l.Content, &l.CreatedAt); err != nil {
+			continue
+		}
+		logs = append(logs, l)
+	}
+	return logs
+}
+
+func (s *SQLiteStore) GetAllTaskLogs(workflowID string) map[string][]TaskLog {
+	rows, err := s.db.Query(
+		`SELECT task_id, stream, content, created_at FROM task_logs WHERE workflow_id = ? ORDER BY id`,
+		workflowID,
+	)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	result := make(map[string][]TaskLog)
+	for rows.Next() {
+		var taskID string
+		var l TaskLog
+		if err := rows.Scan(&taskID, &l.Stream, &l.Content, &l.CreatedAt); err != nil {
+			continue
+		}
+		result[taskID] = append(result[taskID], l)
+	}
+	return result
 }
 
 func (s *SQLiteStore) Close() error {

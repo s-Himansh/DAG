@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
-import { api, Workflow } from "@/lib/api";
+import { api, Workflow, TaskLog } from "@/lib/api";
 
 const nodeStyles: Record<string, { fill: string; stroke: string; text: string; gradient: string; glow: string }> = {
   pending:   { fill: "#f8fafc", stroke: "#cbd5e1", text: "#64748b", gradient: "from-slate-100 to-slate-50",   glow: "none" },
@@ -82,6 +82,9 @@ export default function WorkflowDetail({ params }: { params: Promise<{ id: strin
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [taskLogs, setTaskLogs] = useState<Record<string, TaskLog[]>>({});
+  const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   const fetchWorkflow = async () => {
     try {
@@ -95,11 +98,31 @@ export default function WorkflowDetail({ params }: { params: Promise<{ id: strin
     }
   };
 
+  const fetchLogs = useCallback(async () => {
+    if (!workflow) return;
+    try {
+      const logs = await api.getAllTaskLogs(resolvedParams.id);
+      setTaskLogs(logs || {});
+    } catch {
+      // Logs may not be available yet
+    }
+  }, [workflow, resolvedParams.id]);
+
   useEffect(() => {
     fetchWorkflow();
     const interval = setInterval(fetchWorkflow, 1000);
     return () => clearInterval(interval);
   }, [resolvedParams.id]);
+
+  useEffect(() => {
+    if (workflow && workflow.status === "running") {
+      fetchLogs();
+      const interval = setInterval(fetchLogs, 2000);
+      return () => clearInterval(interval);
+    } else if (workflow) {
+      fetchLogs();
+    }
+  }, [workflow, fetchLogs]);
 
   const handleCancel = async () => {
     try {
@@ -482,12 +505,16 @@ export default function WorkflowDetail({ params }: { params: Promise<{ id: strin
               const state = status?.state || "pending";
               const style = nodeStyles[state] || nodeStyles.pending;
               const cfg = statusConfig[state] || statusConfig.pending;
+              const logs = taskLogs[task.id] || [];
+              const isSelected = selectedTask === task.id;
+              const hasLogs = logs.length > 0;
 
               return (
                 <div
                   key={task.id}
-                  className={`glass p-5 animate-fade-in-left group hover:translate-x-1 transition-transform duration-200`}
+                  className={`glass p-5 animate-fade-in-left group hover:translate-x-1 transition-transform duration-200 ${hasLogs ? "cursor-pointer" : ""}`}
                   style={{ animationDelay: `${i * 60}ms`, borderLeftWidth: "4px", borderLeftColor: style.stroke }}
+                  onClick={() => hasLogs && setSelectedTask(isSelected ? null : task.id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -508,11 +535,28 @@ export default function WorkflowDetail({ params }: { params: Promise<{ id: strin
                             </span>
                           </div>
                         )}
+                        {task.execute && (
+                          <div className="mt-1 font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-lg inline-block">
+                            $ {task.execute}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <span className={`badge-fancy ${cfg.badge}`}>
-                      {cfg.icon} {state}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {hasLogs && (
+                        <svg
+                          className={`w-5 h-5 text-slate-400 transition-transform ${isSelected ? "rotate-180" : ""}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
+                      <span className={`badge-fancy ${cfg.badge}`}>
+                        {cfg.icon} {state}
+                      </span>
+                    </div>
                   </div>
 
                   {status?.error && (
@@ -521,9 +565,19 @@ export default function WorkflowDetail({ params }: { params: Promise<{ id: strin
                     </div>
                   )}
 
-                  {status?.value !== undefined && status?.value !== null && (
-                    <div className="mt-3 p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-sm text-slate-700 font-mono">
-                      Output: {JSON.stringify(status.value)}
+                  {isSelected && hasLogs && (
+                    <div className="mt-4 p-4 bg-slate-900 rounded-xl overflow-hidden animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Output</span>
+                      </div>
+                      <pre className="text-sm text-green-400 font-mono overflow-x-auto max-h-64 overflow-y-auto leading-relaxed">
+                        {logs.map((log, idx) => (
+                          <span key={idx} className={log.stream === "stderr" ? "text-red-400" : ""}>
+                            {log.content}
+                          </span>
+                        ))}
+                      </pre>
                     </div>
                   )}
                 </div>
