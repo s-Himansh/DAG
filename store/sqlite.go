@@ -331,6 +331,28 @@ func (s *SQLiteStore) CancelWorkflow(id string) bool {
 	return affected > 0
 }
 
+func getTaskDuration(taskID string) time.Duration {
+	durations := map[string]time.Duration{
+		"checkout":         2 * time.Second,
+		"install-deps":    3 * time.Second,
+		"lint":             2 * time.Second,
+		"typecheck":        2 * time.Second,
+		"unit-tests":       4 * time.Second,
+		"build":            5 * time.Second,
+		"e2e-chrome":       4 * time.Second,
+		"e2e-firefox":      4 * time.Second,
+		"lighthouse":       3 * time.Second,
+		"deploy-staging":   3 * time.Second,
+		"smoke-tests":      2 * time.Second,
+		"deploy-production": 3 * time.Second,
+		"notify-slack":     1 * time.Second,
+	}
+	if d, ok := durations[taskID]; ok {
+		return d
+	}
+	return 2 * time.Second
+}
+
 func (s *SQLiteStore) ExecuteWorkflow(ctx context.Context, id string) error {
 	w, ok := s.GetWorkflow(id)
 	if !ok {
@@ -345,7 +367,15 @@ func (s *SQLiteStore) ExecuteWorkflow(ctx context.Context, id string) error {
 		taskID := t.ID
 		dagBuilder.AddTask(taskID, func() (any, error) {
 			s.UpdateTaskStatus(id, taskID, "running", nil, "")
-			time.Sleep(100 * time.Millisecond)
+
+			duration := getTaskDuration(taskID)
+			select {
+			case <-time.After(duration):
+			case <-ctx.Done():
+				s.UpdateTaskStatus(id, taskID, "skipped", nil, "cancelled")
+				return nil, ctx.Err()
+			}
+
 			result := fmt.Sprintf("result_%s", taskID)
 			s.UpdateTaskStatus(id, taskID, "completed", result, "")
 			return result, nil

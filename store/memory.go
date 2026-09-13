@@ -182,7 +182,15 @@ func (s *MemoryStore) ExecuteWorkflow(ctx context.Context, id string) error {
 		taskID := t.ID
 		dagBuilder.AddTask(taskID, func() (any, error) {
 			s.UpdateTaskStatus(id, taskID, "running", nil, "")
-			time.Sleep(100 * time.Millisecond)
+
+			duration := getTaskDuration(taskID)
+			select {
+			case <-time.After(duration):
+			case <-ctx.Done():
+				s.UpdateTaskStatus(id, taskID, "skipped", nil, "cancelled")
+				return nil, ctx.Err()
+			}
+
 			result := fmt.Sprintf("result_%s", taskID)
 			s.UpdateTaskStatus(id, taskID, "completed", result, "")
 			return result, nil
