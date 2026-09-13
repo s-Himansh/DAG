@@ -1,0 +1,6 @@
+ui/
+.git/
+*.md
+.env
+data/
+tmp/
