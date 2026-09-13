@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const PREFIX = API_BASE ? "" : "/api";
 
 export interface TaskDefinition {
   id: string;
@@ -50,23 +51,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => request<{ status: string }>("/api/health"),
+  health: () => request<{ status: string }>(`${PREFIX}/health`),
 
   submitWorkflow: (data: SubmitWorkflowRequest) =>
-    request<Workflow>("/api/workflows", {
+    request<Workflow>(`${PREFIX}/workflows`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  listWorkflows: () => request<Workflow[]>("/api/workflows"),
+  listWorkflows: () => request<Workflow[]>(`${PREFIX}/workflows`),
 
-  getWorkflow: (id: string) => request<Workflow>(`/api/workflows/${id}`),
+  getWorkflow: (id: string) => request<Workflow>(`${PREFIX}/workflows/${id}`),
 
   getWorkflowTasks: (id: string) =>
-    request<Record<string, TaskStatus>>(`/api/workflows/${id}/tasks`),
+    request<Record<string, TaskStatus>>(`${PREFIX}/workflows/${id}/tasks`),
 
   cancelWorkflow: (id: string) =>
-    request<{ status: string }>(`/api/workflows/${id}/cancel`, {
+    request<{ status: string }>(`${PREFIX}/workflows/${id}/cancel`, {
       method: "POST",
     }),
 };
