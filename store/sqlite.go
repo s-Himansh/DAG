@@ -124,15 +124,19 @@ func (s *SQLiteStore) CreateWorkflow(req SubmitWorkflowRequest) Workflow {
 func (s *SQLiteStore) GetWorkflow(id string) (Workflow, bool) {
 	var w Workflow
 	var startedAt, endedAt sql.NullTime
+	var errMsg sql.NullString
 
 	err := s.db.QueryRow(
 		`SELECT id, name, status, error, created_at, started_at, ended_at FROM workflows WHERE id = ?`,
 		id,
-	).Scan(&w.ID, &w.Name, &w.Status, &w.Error, &w.CreatedAt, &startedAt, &endedAt)
+	).Scan(&w.ID, &w.Name, &w.Status, &errMsg, &w.CreatedAt, &startedAt, &endedAt)
 	if err != nil {
 		return Workflow{}, false
 	}
 
+	if errMsg.Valid {
+		w.Error = errMsg.String
+	}
 	if startedAt.Valid {
 		w.StartedAt = &startedAt.Time
 	}
