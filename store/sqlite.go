@@ -117,7 +117,20 @@ func (s *SQLiteStore) CreateWorkflow(req SubmitWorkflowRequest) Workflow {
 		return Workflow{}
 	}
 
-	w, _ := s.GetWorkflow(id)
+	w := Workflow{
+		ID:        id,
+		Name:      req.Name,
+		Status:    StatusPending,
+		Tasks:     req.Tasks,
+		CreatedAt: now,
+	}
+	w.TaskStatuses = make(map[string]TaskStatus)
+	for _, t := range req.Tasks {
+		w.TaskStatuses[t.ID] = TaskStatus{
+			ID:    t.ID,
+			State: "pending",
+		}
+	}
 	return w
 }
 
