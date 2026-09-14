@@ -491,6 +491,8 @@ go run cmd/cli/main.go pipeline.yaml
 
 ## Deploy
 
+**Live:** https://dag-pipeline-theta.vercel.app
+
 ```bash
 # Backend (Railway)
 railway up
