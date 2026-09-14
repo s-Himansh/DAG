@@ -7,6 +7,7 @@ import { api, TaskDefinition } from "@/lib/api";
 
 interface TaskInput {
   id: string;
+  execute: string;
   dependencies: string;
 }
 
@@ -17,12 +18,12 @@ const presetTemplates = [
     gradient: "from-blue-500 to-cyan-400",
     description: "ETL with parallel transforms",
     tasks: [
-      { id: "fetch", dependencies: "" },
-      { id: "validate", dependencies: "fetch" },
-      { id: "transform-a", dependencies: "validate" },
-      { id: "transform-b", dependencies: "validate" },
-      { id: "merge", dependencies: "transform-a, transform-b" },
-      { id: "store", dependencies: "merge" },
+      { id: "fetch", execute: "curl -s https://api.example.com/data -o data.json && echo Fetched $(wc -c < data.json) bytes", dependencies: "" },
+      { id: "validate", execute: "cat data.json | python3 -m json.tool > /dev/null && echo JSON valid", dependencies: "fetch" },
+      { id: "transform-a", execute: "cat data.json | head -5 && echo Transform A complete", dependencies: "validate" },
+      { id: "transform-b", execute: "cat data.json | wc -l && echo Transform B complete", dependencies: "validate" },
+      { id: "merge", execute: "echo Merging outputs... && echo Merge complete", dependencies: "transform-a, transform-b" },
+      { id: "store", execute: "cp data.json /tmp/processed.json && echo Stored to /tmp/processed.json", dependencies: "merge" },
     ],
   },
   {
@@ -31,12 +32,12 @@ const presetTemplates = [
     gradient: "from-purple-500 to-pink-400",
     description: "Build, test, deploy",
     tasks: [
-      { id: "checkout", dependencies: "" },
-      { id: "lint", dependencies: "checkout" },
-      { id: "test", dependencies: "checkout" },
-      { id: "build", dependencies: "lint, test" },
-      { id: "deploy-staging", dependencies: "build" },
-      { id: "deploy-prod", dependencies: "deploy-staging" },
+      { id: "checkout", execute: "git clone --depth 1 https://github.com/user/repo.git /tmp/repo 2>/dev/null || echo Repo already cloned", dependencies: "" },
+      { id: "lint", execute: "echo Running linter... && echo Lint passed", dependencies: "checkout" },
+      { id: "test", execute: "echo Running tests... && sleep 1 && echo All tests passed", dependencies: "checkout" },
+      { id: "build", execute: "echo Building project... && echo Build successful", dependencies: "lint, test" },
+      { id: "deploy-staging", execute: "echo Deploying to staging... && echo Staging ready", dependencies: "build" },
+      { id: "deploy-prod", execute: "echo Deploying to production... && echo Deployed!", dependencies: "deploy-staging" },
     ],
   },
   {
@@ -45,11 +46,11 @@ const presetTemplates = [
     gradient: "from-amber-500 to-orange-400",
     description: "Data → Model → Evaluate",
     tasks: [
-      { id: "download-data", dependencies: "" },
-      { id: "preprocess", dependencies: "download-data" },
-      { id: "augment", dependencies: "preprocess" },
-      { id: "train-model", dependencies: "augment" },
-      { id: "evaluate", dependencies: "train-model" },
+      { id: "download-data", execute: "echo Downloading dataset... && echo Downloaded 1000 samples", dependencies: "" },
+      { id: "preprocess", execute: "echo Preprocessing data... && echo Preprocessed 1000 samples", dependencies: "download-data" },
+      { id: "augment", execute: "echo Augmenting data... && echo Augmented to 5000 samples", dependencies: "preprocess" },
+      { id: "train-model", execute: "echo Training model... && sleep 2 && echo Model trained, accuracy: 94.2%", dependencies: "augment" },
+      { id: "evaluate", execute: "echo Evaluating model... && echo F1: 0.93, Precision: 0.95, Recall: 0.91", dependencies: "train-model" },
     ],
   },
 ];
@@ -57,7 +58,7 @@ const presetTemplates = [
 export default function NewWorkflow() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [tasks, setTasks] = useState<TaskInput[]>([{ id: "task1", dependencies: "" }]);
+  const [tasks, setTasks] = useState<TaskInput[]>([{ id: "task1", execute: "echo Hello", dependencies: "" }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -69,7 +70,7 @@ export default function NewWorkflow() {
   };
 
   const addTask = () => {
-    setTasks([...tasks, { id: `task${tasks.length + 1}`, dependencies: "" }]);
+    setTasks([...tasks, { id: `task${tasks.length + 1}`, execute: "echo Done", dependencies: "" }]);
   };
 
   const removeTask = (index: number) => {
@@ -92,7 +93,7 @@ export default function NewWorkflow() {
     try {
       const taskDefs: TaskDefinition[] = tasks.map((t) => ({
         id: t.id,
-        execute: "execute",
+        execute: t.execute || "echo No command",
         dependencies: t.dependencies
           ? t.dependencies.split(",").map((d) => d.trim()).filter(Boolean)
           : [],
@@ -212,6 +213,14 @@ export default function NewWorkflow() {
                     required
                     className="input-fancy flex-1 text-sm font-medium"
                     placeholder="Task ID (e.g., fetch-data)"
+                  />
+                  <input
+                    type="text"
+                    value={task.execute}
+                    onChange={(e) => updateTask(index, "execute", e.target.value)}
+                    required
+                    className="input-fancy flex-1 text-sm font-mono"
+                    placeholder="Command (e.g., echo Hello)"
                   />
                   <div className="flex items-center gap-1.5 flex-1">
                     <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
