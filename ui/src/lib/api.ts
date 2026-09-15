@@ -65,7 +65,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listWorkflows: () => request<Workflow[]>(`${PREFIX}/workflows`),
+  listWorkflows: () => request<Workflow[]>(`${PREFIX}/workflows`).then(d => d || []),
 
   getWorkflow: (id: string) => request<Workflow>(`${PREFIX}/workflows/${id}`),
 
